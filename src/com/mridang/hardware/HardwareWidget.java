@@ -45,11 +45,11 @@ public class HardwareWidget extends DashClockExtension {
 	 * (int)
 	 */
 	@Override
-	protected void onUpdateData(int arg0) {
+	protected void onUpdateData(int intReason) {
 
 		Log.d("HardwareWidget", "Fetching processor and memory utilisation information");
 		final ExtensionData edtInformation = new ExtensionData();
-		edtInformation.visible(true);
+		setUpdateWhenScreenOn(true);
 
 		try {
 
@@ -72,13 +72,13 @@ public class HardwareWidget extends DashClockExtension {
 
 								edtInformation.icon(R.drawable.ic_dashclock);
 								edtInformation.visible(true);
-								
+
 								List<String> lstColumns = Arrays.asList(rafProcessor.readLine().split(" "));
 								//lstColumns.remove(0);
 
 								Integer intCurrentIdle = Integer.parseInt(lstColumns.get(5));
 								Integer intCurrentTotal = 0;
-								
+
 								MemoryInfo memInformation = new MemoryInfo(); 
 								((ActivityManager) getSystemService(Context.ACTIVITY_SERVICE)).getMemoryInfo(memInformation);
 
@@ -93,7 +93,7 @@ public class HardwareWidget extends DashClockExtension {
 
 								intPreviousIdle = intCurrentIdle;
 								intPreviousTotal = intCurrentTotal;
-								
+
 								edtInformation.expandedTitle(getString(R.string.processor, 100 * (intDifferenceTotal - intDifferenceIdle) / intDifferenceTotal));
 								edtInformation.expandedBody(getString(R.string.memory, memInformation.availMem / 1048576L, memInformation.totalMem / 1048576L));
 
@@ -151,10 +151,11 @@ public class HardwareWidget extends DashClockExtension {
 				}
 
 			} else {
-				setUpdateWhenScreenOn(false);
+				setUpdateWhenScreenOn(true);
 			}
 
 		} catch (Exception e) {
+			edtInformation.visible(false);
 			Log.e("HardwareWidget", "Encountered an error", e);
 			BugSenseHandler.sendException(e);
 		}
