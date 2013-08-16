@@ -13,6 +13,7 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.net.Uri;
+import android.os.PowerManager;
 import android.preference.PreferenceManager;
 import android.util.Log;
 
@@ -59,6 +60,9 @@ public class HardwareWidget extends DashClockExtension {
 				Log.d("HardwareWidget", "Starting a new periodic ticker to check proceesor and memory utilization");
 				thrPeriodicTicker = new Thread() {
 
+					PowerManager mgrPower = (PowerManager) getSystemService(POWER_SERVICE);
+					ActivityManager mgrActivity = ((ActivityManager) getSystemService(Context.ACTIVITY_SERVICE));
+
 					public void run () {
 
 						Integer intPreviousTotal = 0;
@@ -68,43 +72,52 @@ public class HardwareWidget extends DashClockExtension {
 
 							try {
 
-								RandomAccessFile rafProcessor = new RandomAccessFile("/proc/stat", "r");
+								if (mgrPower.isScreenOn()) {
 
-								edtInformation.icon(R.drawable.ic_dashclock);
-								edtInformation.visible(true);
+									RandomAccessFile rafProcessor = new RandomAccessFile("/proc/stat", "r");
 
-								List<String> lstColumns = Arrays.asList(rafProcessor.readLine().split(" "));
-								//lstColumns.remove(0);
+									edtInformation.icon(R.drawable.ic_dashclock);
+									edtInformation.visible(true);
 
-								Integer intCurrentIdle = Integer.parseInt(lstColumns.get(5));
-								Integer intCurrentTotal = 0;
+									List<String> lstColumns = Arrays.asList(rafProcessor.readLine().split(" "));
+									//lstColumns.remove(0);
 
-								MemoryInfo memInformation = new MemoryInfo(); 
-								((ActivityManager) getSystemService(Context.ACTIVITY_SERVICE)).getMemoryInfo(memInformation);
+									Integer intCurrentIdle = Integer.parseInt(lstColumns.get(5));
+									Integer intCurrentTotal = 0;
 
-								for (String strStatistic : lstColumns.subList(2, lstColumns.size())) {
+									MemoryInfo memInformation = new MemoryInfo(); 
+									mgrActivity.getMemoryInfo(memInformation);
 
-									intCurrentTotal = intCurrentTotal + Integer.parseInt(strStatistic);
+									for (String strStatistic : lstColumns.subList(2, lstColumns.size())) {
+
+										intCurrentTotal = intCurrentTotal + Integer.parseInt(strStatistic);
+
+									}
+
+									Integer intDifferenceIdle = intCurrentIdle - intPreviousIdle;
+									Integer intDifferenceTotal = intCurrentTotal - intPreviousTotal;
+
+									intPreviousIdle = intCurrentIdle;
+									intPreviousTotal = intCurrentTotal;
+
+									edtInformation.expandedTitle(getString(R.string.processor, 100 * (intDifferenceTotal - intDifferenceIdle) / intDifferenceTotal));
+									edtInformation.expandedBody(getString(R.string.memory, memInformation.availMem / 1048576L, memInformation.totalMem / 1048576L));
+
+									System.out.println(100 * (intDifferenceTotal - intDifferenceIdle) / intDifferenceTotal);
+
+									publishUpdate(edtInformation);
+									rafProcessor.close();
 
 								}
-
-								Integer intDifferenceIdle = intCurrentIdle - intPreviousIdle;
-								Integer intDifferenceTotal = intCurrentTotal - intPreviousTotal;
-
-								intPreviousIdle = intCurrentIdle;
-								intPreviousTotal = intCurrentTotal;
-
-								edtInformation.expandedTitle(getString(R.string.processor, 100 * (intDifferenceTotal - intDifferenceIdle) / intDifferenceTotal));
-								edtInformation.expandedBody(getString(R.string.memory, memInformation.availMem / 1048576L, memInformation.totalMem / 1048576L));
-
-								publishUpdate(edtInformation);
-								rafProcessor.close();
 
 								Thread.sleep(Integer.parseInt(PreferenceManager.getDefaultSharedPreferences(getApplicationContext()).getString("interval", "5")) * 1000);
 
 							} catch (InterruptedException e) {
 								Log.d("HardwareWidget", "Stopping the periodic checker.");
 								return;
+							} catch (ArithmeticException e) {
+								Log.d("HardwareWidget", "Some edge case math error");
+								continue;
 							} catch (Exception e) {
 								Log.e("HardwareWidget", "Encountered an error", e);
 								BugSenseHandler.sendException(e);
