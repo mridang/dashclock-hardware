@@ -9,12 +9,10 @@ import android.app.ActivityManager;
 import android.app.ActivityManager.MemoryInfo;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
+import android.content.pm.ResolveInfo;
 import android.net.Uri;
-import android.os.PowerManager;
-import android.preference.PreferenceManager;
 import android.util.Log;
 
 import com.bugsense.trace.BugSenseHandler;
@@ -26,8 +24,10 @@ import com.google.android.apps.dashclock.api.ExtensionData;
  */
 public class HardwareWidget extends DashClockExtension {
 
-	/* This is the instance of the thread that keeps track of connected clients */
-	private Thread thrPeriodicTicker;
+	/* This is the processor utilization since the the last update */
+	Integer intPreviousTotal = 0;
+	/* This is the processor utilization since the the last update */
+	Integer intPreviousIdle = 0;
 
 	/*
 	 * @see com.google.android.apps.dashclock.api.DashClockExtension#onCreate()
@@ -36,7 +36,7 @@ public class HardwareWidget extends DashClockExtension {
 
 		super.onCreate();
 		Log.d("HardwareWidget", "Created");
-		BugSenseHandler.initAndStartSession(this, "667d3440");
+		BugSenseHandler.initAndStartSession(this, getString(R.string.bugsense));
 
 	}
 
@@ -54,83 +54,33 @@ public class HardwareWidget extends DashClockExtension {
 
 		try {
 
-			Log.d("HardwareWidget", "Checking if the periodic ticker is enabled");
-			if (thrPeriodicTicker == null) {
+			ActivityManager mgrActivity = ((ActivityManager) getSystemService(Context.ACTIVITY_SERVICE));
+			RandomAccessFile rafProcessor = new RandomAccessFile("/proc/stat", "r");
 
-				Log.d("HardwareWidget", "Starting a new periodic ticker to check proceesor and memory utilization");
-				thrPeriodicTicker = new Thread() {
+			try {
 
-					PowerManager mgrPower = (PowerManager) getSystemService(POWER_SERVICE);
-					ActivityManager mgrActivity = ((ActivityManager) getSystemService(Context.ACTIVITY_SERVICE));
+				List<String> lstColumns = Arrays.asList(rafProcessor.readLine().split(" "));
 
-					public void run () {
+				Integer intCurrentIdle = Integer.parseInt(lstColumns.get(5));
+				Integer intCurrentTotal = 0;
+				for (String strStatistic : lstColumns.subList(2, lstColumns.size())) {
+					intCurrentTotal = intCurrentTotal + Integer.parseInt(strStatistic);
+				}
+				Integer intDifferenceIdle = intCurrentIdle - intPreviousIdle;
+				Integer intDifferenceTotal = intCurrentTotal - intPreviousTotal;
 
-						Integer intPreviousTotal = 0;
-						Integer intPreviousIdle = 0;
+				intPreviousIdle = intCurrentIdle;
+				intPreviousTotal = intCurrentTotal;
 
-						for (;;) {
+				MemoryInfo memInformation = new MemoryInfo(); 
+				mgrActivity.getMemoryInfo(memInformation);
 
-							try {
+				edtInformation.visible(true);
+				edtInformation.expandedTitle(getString(R.string.processor, 100 * (intDifferenceTotal - intDifferenceIdle) / intDifferenceTotal));
+				edtInformation.expandedBody(getString(R.string.memory, memInformation.availMem / 1048576L, memInformation.totalMem / 1048576L));
 
-								if (mgrPower.isScreenOn()) {
-
-									RandomAccessFile rafProcessor = new RandomAccessFile("/proc/stat", "r");
-
-									edtInformation.icon(R.drawable.ic_dashclock);
-									edtInformation.visible(true);
-
-									List<String> lstColumns = Arrays.asList(rafProcessor.readLine().split(" "));
-									//lstColumns.remove(0);
-
-									Integer intCurrentIdle = Integer.parseInt(lstColumns.get(5));
-									Integer intCurrentTotal = 0;
-
-									MemoryInfo memInformation = new MemoryInfo(); 
-									mgrActivity.getMemoryInfo(memInformation);
-
-									for (String strStatistic : lstColumns.subList(2, lstColumns.size())) {
-
-										intCurrentTotal = intCurrentTotal + Integer.parseInt(strStatistic);
-
-									}
-
-									Integer intDifferenceIdle = intCurrentIdle - intPreviousIdle;
-									Integer intDifferenceTotal = intCurrentTotal - intPreviousTotal;
-
-									intPreviousIdle = intCurrentIdle;
-									intPreviousTotal = intCurrentTotal;
-
-									edtInformation.expandedTitle(getString(R.string.processor, 100 * (intDifferenceTotal - intDifferenceIdle) / intDifferenceTotal));
-									edtInformation.expandedBody(getString(R.string.memory, memInformation.availMem / 1048576L, memInformation.totalMem / 1048576L));
-
-									System.out.println(100 * (intDifferenceTotal - intDifferenceIdle) / intDifferenceTotal);
-
-									publishUpdate(edtInformation);
-									rafProcessor.close();
-
-								}
-
-								Thread.sleep(Integer.parseInt(PreferenceManager.getDefaultSharedPreferences(getApplicationContext()).getString("interval", "5")) * 1000);
-
-							} catch (InterruptedException e) {
-								Log.d("HardwareWidget", "Stopping the periodic checker.");
-								return;
-							} catch (ArithmeticException e) {
-								Log.d("HardwareWidget", "Some edge case math error");
-								continue;
-							} catch (Exception e) {
-								Log.e("HardwareWidget", "Encountered an error", e);
-								BugSenseHandler.sendException(e);
-							}
-
-						}
-
-					}
-
-				};
-
-				thrPeriodicTicker.start();
-
+			} finally {
+				rafProcessor.close();
 			}
 
 			if (new Random().nextInt(5) == 0) {
@@ -144,10 +94,13 @@ public class HardwareWidget extends DashClockExtension {
 				} catch (NameNotFoundException e) {
 
 					Integer intExtensions = 0;
+					Intent ittFilter = new Intent("com.google.android.apps.dashclock.Extension");
+					String strPackage;
 
-					for (PackageInfo pkgPackage : mgrPackages.getInstalledPackages(0)) {
+					for (ResolveInfo info : mgrPackages.queryIntentServices(ittFilter, 0)) {
 
-						intExtensions = intExtensions + (pkgPackage.applicationInfo.packageName.startsWith("com.mridang.") ? 1 : 0); 
+						strPackage = info.serviceInfo.applicationInfo.packageName;
+						intExtensions = intExtensions + (strPackage.startsWith("com.mridang.") ? 1 : 0); 
 
 					}
 

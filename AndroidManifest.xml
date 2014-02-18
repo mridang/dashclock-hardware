@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.mridang.hardware"
-    android:versionCode="4"
-    android:versionName="0.4" >
+    android:versionCode="5"
+    android:versionName="0.5" >
 
     <uses-sdk
         android:minSdkVersion="17"
@@ -25,20 +25,14 @@
 
             <meta-data
                 android:name="protocolVersion"
-                android:value="1" />
+                android:value="2" />
+            <meta-data
+                android:name="worldReadable"
+                android:value="true" />
             <meta-data
                 android:name="description"
                 android:value="@string/extension_info" />
-            <meta-data
-                android:name="settingsActivity"
-                android:value=".WidgetSettings" />
         </service>
-
-        <activity
-            android:name="com.mridang.hardware.WidgetSettings"
-            android:exported="true" 
-            android:label="@string/preferences_title" >
-        </activity>
     </application>
 
 </manifest>
