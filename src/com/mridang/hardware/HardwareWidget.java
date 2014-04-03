@@ -25,9 +25,9 @@ import com.google.android.apps.dashclock.api.ExtensionData;
 public class HardwareWidget extends DashClockExtension {
 
 	/* This is the processor utilization since the the last update */
-	Integer intPreviousTotal = 0;
+	Long lngPreviousTotal = 0L;
 	/* This is the processor utilization since the the last update */
-	Integer intPreviousIdle = 0;
+	Long lngPreviousIdle = 0L;
 
 	/*
 	 * @see com.google.android.apps.dashclock.api.DashClockExtension#onCreate()
@@ -61,23 +61,24 @@ public class HardwareWidget extends DashClockExtension {
 
 				List<String> lstColumns = Arrays.asList(rafProcessor.readLine().split(" "));
 
-				Integer intCurrentIdle = Integer.parseInt(lstColumns.get(5));
-				Integer intCurrentTotal = 0;
+				Long lngCurrentIdle = Long.parseLong(lstColumns.get(5));
+				Long lngCurrentTotal = 0L;
 				for (String strStatistic : lstColumns.subList(2, lstColumns.size())) {
-					intCurrentTotal = intCurrentTotal + Integer.parseInt(strStatistic);
+					lngCurrentTotal = lngCurrentTotal + Integer.parseInt(strStatistic);
 				}
-				Integer intDifferenceIdle = intCurrentIdle - intPreviousIdle;
-				Integer intDifferenceTotal = intCurrentTotal - intPreviousTotal;
+				Long lngDifferenceIdle = lngCurrentIdle - lngPreviousIdle;
+				Long lngDifferenceTotal = lngCurrentTotal - lngPreviousTotal;
 
-				intPreviousIdle = intCurrentIdle;
-				intPreviousTotal = intCurrentTotal;
+				lngPreviousIdle = lngCurrentIdle;
+				lngPreviousTotal = lngCurrentTotal;
 
+				Long lngUsageDelta = lngDifferenceTotal - lngDifferenceIdle;
 				MemoryInfo memInformation = new MemoryInfo(); 
 				mgrActivity.getMemoryInfo(memInformation);
 
-				edtInformation.visible(true);
-				edtInformation.expandedTitle(getString(R.string.processor, 100 * (intDifferenceTotal - intDifferenceIdle) / intDifferenceTotal));
+				edtInformation.expandedTitle(getString(R.string.processor, lngDifferenceTotal > 0 ? (100L * lngUsageDelta / lngDifferenceTotal) : 0L));
 				edtInformation.expandedBody(getString(R.string.memory, memInformation.availMem / 1048576L, memInformation.totalMem / 1048576L));
+				edtInformation.visible(true);
 
 			} finally {
 				rafProcessor.close();
